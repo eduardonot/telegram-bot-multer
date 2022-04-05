@@ -11,7 +11,7 @@ bot.on('photo', async (msg) => {
   const chatId = msg.chat.id
   bot.sendPhoto(chatId, msg.photo[0].file_id)
   // await bot.downloadFile(msg.photo[0].file_id, path.resolve(__dirname, '..', '..', 'tmp', 'pic'))
-  //   .then(bot.sendPhoto(chatId, 'Downloaded!'))
+  //   .then(bot.sendPhoto(chatId, 'Downloaded!')) 
 })
 bot.on('video', (msg) => {
   const chatId = msg.chat.id
