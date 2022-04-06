@@ -1,4 +1,5 @@
 const express = require('express')
+const morgan = require('morgan')
 require('./telegramBot')
 const db = require('./mongoose')
 const app = express()
@@ -11,5 +12,6 @@ module.exports = {
     app.use(express.json())
     app.use(express.urlencoded({ extended: true }))
     app.use(require('./../routes'))
+    app.use(morgan('dev'))
   }
 }
