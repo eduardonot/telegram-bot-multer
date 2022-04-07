@@ -1,6 +1,12 @@
 const mongoose = require('mongoose')
 const FileSchema = mongoose.Schema(
   {
+    uploadedBy: {
+      type: Number
+    },
+    originalFilename: {
+      type: String
+    },
     name: {
       type: String
     },
@@ -16,9 +22,18 @@ const FileSchema = mongoose.Schema(
     url: {
       type: String
     },
+    sharingType: {
+      type: String
+    },
+    selling_value: {
+      type: Number
+    },
     createdAt: {
       type: Date,
       default: Date.now
+    },
+    autoDeleteDate: {
+      type: Date
     }
   }
 )
