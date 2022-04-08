@@ -36,7 +36,6 @@ bot.on('photo', async (msg) => {
   const fileToUpload = fs.createReadStream(newFileFolder)
   const uploadURL = process.env.APP_UPLOAD_ROUTE
   const chatId = msg.chat.id
-  await bot.sendMessage(chatId, 'Uploading to Cloud Server')
   let file
   if (msg.photo[0]) { file = msg.photo[0] }
   if (msg.photo[1]) { file = msg.photo[1] }
@@ -63,7 +62,12 @@ bot.on('video', (msg) => {
 })
 
 bot.on('callback_query', (chatData) => {
-  console.log(chatData)
+  const data = JSON.parse(chatData.data)
+  console.log(data)
+  // TODO - Procurar arquivo no banco pelo hash e alterar os seguintes dados:
+  // Sharing Type para data.type
+  // uploadedby > userId
+  
 })
 
 bot.on('message', (msg) => {
@@ -80,14 +84,17 @@ bot.on('message', (msg) => {
 
 module.exports = {
   uploadSucess: async (chatId, uploadedFileData, messageId) => {
-    const inlineKeyboard = {
-      inline_keyboard: [
-        [{ text: 'Share 📤', callback_data: 'share' }, { text: 'Sell 💸', callback_data: 'sell' }]]
-    }
     const parseData = JSON.parse(uploadedFileData)
-    await bot.sendMessage(chatId, 'Here is your file token. It can only be used once!')
+    const inlineKeyboard = {
+      inline_keyboard: [[
+        { text: 'Free 📤', callback_data: JSON.stringify({ type: 'share', hash: parseData.hash }) },
+        { text: 'Sell 💸', callback_data: JSON.stringify({ type: 'sell', hash: parseData.hash }) }
+      ]]
+    }
+    await bot.sendMessage(chatId, 'Done!')
+    await bot.sendMessage(chatId, 'Here is your file token. Remember: It can only be used once!')
     await bot.sendMessage(chatId, parseData.hash)
-    await bot.sendMessage(chatId, 'Select a transfer method:', {
+    await bot.sendMessage(chatId, 'Select a sharing method:', {
       reply_to_message_id: messageId,
       reply_markup: inlineKeyboard
     })
