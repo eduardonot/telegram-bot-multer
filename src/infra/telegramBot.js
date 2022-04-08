@@ -1,15 +1,30 @@
 const TelegramBot = require('node-telegram-bot-api')
 const token = process.env.TELEGRAM_BOT_TOKEN
 const bot = new TelegramBot(token, { polling: true })
-const FormData = require('form-data')
-const path = require('path')
-const axios = require('axios').default
-const fs = require('fs')
+const FileController = require('./../controller/Files')
+const fileHandler = require('./../helpers/fileHandler')
+const httpRequest = require('../helpers/httpRequest')
+const Files = require('./../controller/Files')
 
 bot.onText(/\/start/, (msg) => {
   bot.sendMessage(msg.chat.id, `Welcome, you can start sharing!
 Type /upload to file format and sharing info.
 Type /help if you want to know more about this bot.`)
+})
+
+bot.onText(/\/getfile/, (msg) => {
+  bot.sendMessage(msg.chat.id, 'To download your file, just type /getfile [hash] without the brackets.')
+})
+
+bot.onText(/\/getfile (.+)/, async (msg, match) => {
+  const chatId = msg.chat.id
+  const resp = match[1]
+  await Files.getFile(resp)
+    .then(async (data) => {
+      await bot.sendMessage(chatId, 'Sending...')
+      await bot.sendPhoto(chatId, data[0].url)
+    })
+    .catch(async () => await bot.sendMessage(chatId, 'This hash is Invalid or Expired'))
 })
 
 bot.onText(/\/upload/, (msg) => {
@@ -31,28 +46,18 @@ bot.onText(/\/help/, (msg) => {
 })
 
 bot.on('photo', async (msg) => {
-  const oldFileFolder = path.resolve(__dirname, '..', '..', 'tmp', 'sending', 'old')
-  const newFileFolder = path.resolve(__dirname, '..', '..', 'tmp', 'sending', 'new', 'new-_file.jpeg')
-  const fileToUpload = fs.createReadStream(newFileFolder)
-  const uploadURL = process.env.APP_UPLOAD_ROUTE
   const chatId = msg.chat.id
   let file
   if (msg.photo[0]) { file = msg.photo[0] }
   if (msg.photo[1]) { file = msg.photo[1] }
   if (msg.photo[2]) { file = msg.photo[2] }
 
-  await bot.downloadFile(file.file_id, oldFileFolder)
+  await bot.downloadFile(file.file_id, fileHandler.oldFileFolder)
     .then(async data => {
-      fs.rename(data, newFileFolder, async function (err) {
-        if (err) await bot.sendMessage(chatId, 'There was a problem during your request. Try again!')
-      })
-      const formData = new FormData()
-      formData.append('file', fileToUpload)
-      formData.append('messageid', msg.message_id)
-      formData.append('chatid', chatId)
-      await axios.post(uploadURL, formData, {
-        headers: formData.getHeaders()
-      })
+      fileHandler.rename(data, fileHandler.newFileFolder)
+        .catch(async () => await bot.sendMessage(chatId, 'There was a problem during your request. Try again!'))
+      httpRequest.upload(chatId, msg.message_id, fileHandler.fileToUpload)
+        .catch(async () => bot.sendMessage(chatId, 'Upload Problem. Try again!'))
     })
 })
 bot.on('video', (msg) => {
@@ -61,25 +66,31 @@ bot.on('video', (msg) => {
   console.log(msg)
 })
 
-bot.on('callback_query', (chatData) => {
+bot.on('callback_query', async (chatData) => {
+  const chatId = chatData.message.chat.id
   const data = JSON.parse(chatData.data)
-  console.log(data)
-  // TODO - Procurar arquivo no banco pelo hash e alterar os seguintes dados:
-  // Sharing Type para data.type
-  // uploadedby > userId
-  
+  switch (data.type) {
+    case 'share':
+      await bot.answerCallbackQuery(chatData.id)
+        .then(async () => await bot.deleteMessage(chatData.message.chat.id, chatData.message.message_id))
+      FileController.setSharingType(data.hash, data.type, chatData.from.id, 0)
+        .then(async (hash) => await bot.sendMessage(chatId, 'Here is your Sharing Hash. Remember: It can be only used once!\nIf you want to know how to download the file, type: /getfile')
+          .then(async () => await bot.sendMessage(chatId, hash)))
+        .catch(async () => await bot.sendMessage(chatId, 'Could not generate your share hash. Try again!'))
+      break
+    case 'sell':
+      await bot.sendMessage(chatId, 'Not working yet')
+      await bot.answerCallbackQuery(chatData.id)
+      // FileController.setSharingType(data.hash, data.type, chatData.from.id, 1)
+      //   .then(async (hash) => await bot.sendMessage(chatId, 'Here is your Selling Hash. Remember: It can be only used once!\nIf you want to know how to download the file, type: /getfile')
+      //     .then(async () => await bot.sendMessage(chatId, hash)))
+      //   .catch(async () => await bot.sendMessage(chatId, 'Could not generate your share hash. Try again!'))
+      break
+  }
 })
 
 bot.on('message', (msg) => {
-  // const inlineKeyboard = {
-  //   inline_keyboard: [
-  //     [{ text: 'Yes', callback_data: '1' }, { text: 'No', callback_data: '2' }]]
-  // }
-  // const chatId = msg.chat.id
-  // bot.sendMessage(chatId, 'Welcome', {
-  //   reply_to_message_id: msg.message_id,
-  //   reply_markup: inlineKeyboard
-  // })
+  // NOTHING YET
 })
 
 module.exports = {
@@ -92,8 +103,6 @@ module.exports = {
       ]]
     }
     await bot.sendMessage(chatId, 'Done!')
-    await bot.sendMessage(chatId, 'Here is your file token. Remember: It can only be used once!')
-    await bot.sendMessage(chatId, parseData.hash)
     await bot.sendMessage(chatId, 'Select a sharing method:', {
       reply_to_message_id: messageId,
       reply_markup: inlineKeyboard

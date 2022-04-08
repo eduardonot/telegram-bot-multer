@@ -1,4 +1,7 @@
 const mongoose = require('mongoose')
+const aws = require('aws-sdk')
+const s3 = new aws.S3()
+
 const FileSchema = mongoose.Schema(
   {
     uploadedBy: {
@@ -25,7 +28,7 @@ const FileSchema = mongoose.Schema(
     sharingType: {
       type: String
     },
-    selling_value: {
+    sellingValue: {
       type: Number
     },
     createdAt: {
@@ -37,4 +40,10 @@ const FileSchema = mongoose.Schema(
     }
   }
 )
+FileSchema.pre('remove', function () {
+  return s3.deleteObject({
+    Bucket: process.env.AWS_BUCKET_NAME,
+    Key: this.key
+  }).promise()
+})
 module.exports = mongoose.model('Files', FileSchema)
