@@ -10,10 +10,17 @@ module.exports = {
     })
   },
   getFile: async (hash) => {
-    return new Promise(function(resolve, reject) {
+    return new Promise(function (resolve, reject) {
       Files.find({ hash })
         .then(data => resolve(data))
         .catch(err => reject(err))
+    })
+  },
+  deleteOne: async (hash) => {
+    return new Promise(function (resolve, reject) {
+      Files.findOneAndDelete({ hash: hash })
+        .then(data => resolve(data))
+        .catch(err => (err))
     })
   }
 }

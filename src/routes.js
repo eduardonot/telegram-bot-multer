@@ -17,9 +17,15 @@ routes.post('/upload', multer(multerConfig).single('file'), async (req, res) => 
     originalFilename: 'pic'
   })
   telegram.uploadSucess(req.body.chatid, JSON.stringify(sendFile), req.body.messageid)
-  res.send('Done')
+  res.status(201).send('Created')
 })
 
-routes.get('/', (req, res) => res.send('oi'))
+routes.delete('/delete', async (req, res) => {
+  const fileHash = req.body.hash
+  const getFile = await Files.findOne({ hash: fileHash })
+  await getFile.remove()
+  res.status(200).send(getFile)
+  // const getFile = await Files.find
+})
 
 module.exports = routes

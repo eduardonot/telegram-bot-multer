@@ -13,7 +13,7 @@ Type /help if you want to know more about this bot.`)
 })
 
 bot.onText(/\/getfile/, (msg) => {
-  bot.sendMessage(msg.chat.id, 'To download your file, just type /getfile [hash] without the brackets.')
+  if (msg.text === '/getfile') bot.sendMessage(msg.chat.id, 'To download your file, just type /getfile [hash] without the brackets.')
 })
 
 bot.onText(/\/getfile (.+)/, async (msg, match) => {
@@ -21,10 +21,23 @@ bot.onText(/\/getfile (.+)/, async (msg, match) => {
   const resp = match[1]
   await Files.getFile(resp)
     .then(async (data) => {
-      await bot.sendMessage(chatId, 'Sending...')
-      await bot.sendPhoto(chatId, data[0].url)
+      if (data.length > 0) {
+        await bot.sendMessage(chatId, 'Wait a moment...')
+        await bot.sendPhoto(chatId, data[0].url)
+        Files.deleteFile(data[0].hash)
+          .then(resp => {
+            if (chatId !== resp.data.uploadedBy) {
+              bot.sendMessage(resp.data.uploadedBy, `The file you shared has been downloaded\nFile Hash: ${data[0].hash}`)
+            }
+            bot.sendMessage(chatId, `Here is your file. You can't download it again.\nFile Hash: ${data[0].hash}`)
+          })
+      } else {
+        await bot.sendMessage(chatId, 'This hash is Invalid or Expired')
+      }
     })
-    .catch(async () => await bot.sendMessage(chatId, 'This hash is Invalid or Expired'))
+    .catch(async () => {
+      await bot.sendMessage(chatId, 'Problem with your request. Try Again!')
+    })
 })
 
 bot.onText(/\/upload/, (msg) => {
@@ -51,13 +64,18 @@ bot.on('photo', async (msg) => {
   if (msg.photo[0]) { file = msg.photo[0] }
   if (msg.photo[1]) { file = msg.photo[1] }
   if (msg.photo[2]) { file = msg.photo[2] }
-
-  await bot.downloadFile(file.file_id, fileHandler.oldFileFolder)
-    .then(async data => {
+  bot.downloadFile(file.file_id, fileHandler.oldFileFolder)
+    .then(data => {
       fileHandler.rename(data, fileHandler.newFileFolder)
+        .then(() => {
+          httpRequest.upload(chatId, msg.message_id, fileHandler.fileToUpload())
+            .then(async (data) => {
+              await fileHandler.delete(fileHandler.newFileFolder)
+              return data
+            })
+            .catch(async () => bot.sendMessage(chatId, 'Upload Problem. Try again!'))
+        })
         .catch(async () => await bot.sendMessage(chatId, 'There was a problem during your request. Try again!'))
-      httpRequest.upload(chatId, msg.message_id, fileHandler.fileToUpload)
-        .catch(async () => bot.sendMessage(chatId, 'Upload Problem. Try again!'))
     })
 })
 bot.on('video', (msg) => {
