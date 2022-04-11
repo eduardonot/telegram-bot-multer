@@ -1,9 +1,9 @@
 const FileService = require('./../services/FileService')
 const httpRequest = require('./../helpers/httpRequest')
 module.exports = {
-  setSharingType: (hash, type, userId, sellingValue) => {
+  setSharingType: (hash, type, userId, sellingValue, originalFileName) => {
     return new Promise(function (resolve, reject) {
-      FileService.findOneAndUpdate(hash, type, userId, sellingValue)
+      FileService.findOneAndUpdate(hash, type, userId, sellingValue, originalFileName)
         .then(() => resolve(hash))
         .catch((err) => reject(err))
     })

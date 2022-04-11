@@ -12,9 +12,9 @@ routes.post('/upload', multer(multerConfig).single('file'), async (req, res) => 
     key,
     hash,
     url,
+    uploadCategory: req.body.category,
     sharingType: 'none',
-    sellingValua: 0,
-    originalFilename: 'pic'
+    sellingValue: 0
   })
   telegram.uploadSucess(req.body.chatid, JSON.stringify(sendFile), req.body.messageid)
   res.status(201).send('Created')

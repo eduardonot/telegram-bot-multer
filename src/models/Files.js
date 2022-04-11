@@ -7,9 +7,6 @@ const FileSchema = mongoose.Schema(
     uploadedBy: {
       type: Number
     },
-    originalFilename: {
-      type: String
-    },
     name: {
       type: String
     },
@@ -26,6 +23,9 @@ const FileSchema = mongoose.Schema(
       type: String
     },
     sharingType: {
+      type: String
+    },
+    uploadCategory: {
       type: String
     },
     sellingValue: {

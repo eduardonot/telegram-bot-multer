@@ -1,11 +1,12 @@
 const Files = require('./../models/Files')
 module.exports = {
-  findOneAndUpdate: async (hash, type, userId, sellingValue) => {
+  findOneAndUpdate: async (hash, type, userId, sellingValue, originalFileName) => {
     await Files.findOneAndUpdate({ hash }, {
       $set: {
         uploadedBy: userId,
         sharingType: type,
-        sellingValue
+        sellingValue,
+        originalFileName: originalFileName || 'MyFile'
       }
     })
   },

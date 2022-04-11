@@ -1,12 +1,13 @@
 const path = require('path')
 const fs = require('fs')
 const oldFileFolder = path.resolve(__dirname, '..', '..', 'tmp', 'sending', 'old')
-const newFileFolder = path.resolve(__dirname, '..', '..', 'tmp', 'sending', 'new', 'new-_file.jpeg')
 module.exports = {
   oldFileFolder,
-  newFileFolder,
-  fileToUpload: () => {
-    return fs.createReadStream(newFileFolder)
+  newFileFolder: (originalFileName) => {
+    return path.resolve(__dirname, '..', '..', 'tmp', 'sending', 'new', originalFileName)
+  },
+  fileToUpload: (originalFileName) => {
+    return fs.createReadStream(path.resolve(__dirname, '..', '..', 'tmp', 'sending', 'new', originalFileName))
   },
   rename: (file, newFileFolder) => {
     return new Promise(function (resolve, reject) {

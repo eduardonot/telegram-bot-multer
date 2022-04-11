@@ -32,11 +32,9 @@ module.exports = {
       'image/jpeg',
       'image/pjpeg',
       'image/png',
-      'image/gif',
       'video/mp4',
       'application/zip',
-      'application/vnd.rar',
-      'application/x-rar-compressed'
+      'application/pdf'
     ]
 
     if (allowedMimes.includes(file.mimetype)) {
