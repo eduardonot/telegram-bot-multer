@@ -6,10 +6,40 @@ const fileHandler = require('./../helpers/fileHandler')
 const httpRequest = require('../helpers/httpRequest')
 const Files = require('./../controller/Files')
 
+// CONVERT NUMERIC SIZE TO SIZE NAME
+function formatBytes (bytes, decimals = 2) {
+  if (bytes === 0) return '0 Bytes'
+
+  const k = 1024
+  const dm = decimals < 0 ? 0 : decimals
+  const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB']
+
+  const i = Math.floor(Math.log(bytes) / Math.log(k))
+
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i]
+}
+
+async function sendDownloadInline (chatId, file, messageId) {
+  const fileSize = formatBytes(file.size)
+  console.log(file.hash)
+  const inlineKeyboard = {
+    inline_keyboard: [[
+      { text: 'Download', callback_data: JSON.stringify({ type: 'download', hash: file.hash }) },
+      { text: 'Cancel', callback_data: JSON.stringify({ type: 'cancel' }) }
+    ]]
+  }
+  return await bot.sendMessage(chatId, `File Found!\n\nYou're about to download the following file:\nFile Name: ${file.name}\nSize: ${fileSize}\n\nSelect:`, {
+    reply_to_message_id: messageId,
+    reply_markup: inlineKeyboard
+  })
+}
+
 bot.onText(/\/start/, (msg) => {
-  bot.sendMessage(msg.chat.id, `Welcome, you can start sharing!
+  if (msg.text === '/start') {
+    bot.sendMessage(msg.chat.id, `Welcome, you can start sharing!
 Type /upload to file format and sharing info.
 Type /help if you want to know more about this bot.`)
+  }
 })
 
 bot.onText(/\/getfile/, (msg) => {
@@ -20,29 +50,23 @@ bot.onText(/\/getfile/, (msg) => {
 bot.onText(/\/start (.+)|\/getfile (.+)/, async (msg, match) => {
   const chatId = msg.chat.id
   const resp = match[1] || match[2]
-  await Files.getFile(resp)
+
   // RETURN FILE FROM DATABASE
+  await Files.getFile(resp)
     .then(async (data) => {
+      console.log(data)
       if (data.length > 0) {
-        await bot.sendMessage(chatId, 'Wait a moment...')
+        const file = data[0]
         // FREE SHARING OPTION
-        if (data[0].sharingType === 'share') {
-          if (data[0].uploadCategory === 'photo') await bot.sendPhoto(chatId, data[0].url)
-          if (data[0].uploadCategory === 'document') await bot.sendDocument(chatId, data[0].url)
-          if (data[0].uploadCategory === 'video') await bot.sendVideo(chatId, data[0].url)
-          Files.deleteFile(data[0].hash)
-            .then(resp => {
-              if (chatId !== resp.data.uploadedBy) {
-                bot.sendMessage(resp.data.uploadedBy, `The file you shared has been downloaded\nFile Hash: ${data[0].hash}`)
-              }
-              bot.sendMessage(chatId, `Here is your file. You can't download it again.\nHash Used: ${data[0].hash}`)
-            })
+        if (file.sharingType === 'share') {
+          await sendDownloadInline(chatId, file, msg.message_id)
         }
       } else {
         await bot.sendMessage(chatId, 'This hash is Invalid or Expired')
       }
     })
-    .catch(async () => {
+    .catch(async (err) => {
+      console.log(err)
       await bot.sendMessage(chatId, 'Problem with your request. Try Again!')
     })
 })
@@ -113,10 +137,10 @@ bot.on('document', (msg) => {
 bot.on('callback_query', async (chatData) => {
   const chatId = chatData.message.chat.id
   const data = JSON.parse(chatData.data)
+  await bot.answerCallbackQuery(chatData.id)
+    .then(async () => await bot.deleteMessage(chatData.message.chat.id, chatData.message.message_id))
   switch (data.type) {
     case 'share':
-      await bot.answerCallbackQuery(chatData.id)
-        .then(async () => await bot.deleteMessage(chatData.message.chat.id, chatData.message.message_id))
       FileController.setSharingType(data.hash, data.type, chatData.from.id, 0, 'Default File Name')
         .then(async (hash) => await bot.sendMessage(chatId, 'With the hash below, the file can be downloaded once. Share carefully.')
           .then(async () => await bot.sendMessage(chatId, hash))
@@ -125,7 +149,26 @@ bot.on('callback_query', async (chatData) => {
       break
     case 'sell':
       await bot.sendMessage(chatId, 'Not working yet')
-      await bot.answerCallbackQuery(chatData.id)
+      break
+    case 'download':
+      await Files.getFile(data.hash)
+        .then(async (data) => {
+          const file = data[0]
+          if (file.uploadCategory === 'photo') await bot.sendPhoto(chatId, file.url)
+          if (file.uploadCategory === 'document') await bot.sendDocument(chatId, file.url)
+          if (file.uploadCategory === 'video') await bot.sendVideo(chatId, file.url)
+          await Files.deleteFile(file.hash)
+            .then(resp => {
+              if (chatId !== resp.data.uploadedBy) {
+                bot.sendMessage(resp.data.uploadedBy, `The file you shared has been downloaded\nFile Hash: ${file.hash}`)
+              }
+              bot.sendMessage(chatId, `Here is your file. You can't download it again.\nHash Used: ${file.hash}`)
+            })
+            .catch(err => console.log(err))
+        })
+      break
+    case 'cancel':
+      await bot.sendMessage(chatId, 'Canceled!')
       break
   }
 })
