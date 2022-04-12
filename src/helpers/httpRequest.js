@@ -41,9 +41,11 @@ module.exports = {
             reject(data.status)
           }
         })
-        .catch(() => {
-          return submit
+        .catch((err) => {
+          console.log(err)
+          reject(err)
         })
+        .catch(() => { return submit })
     })
   }
 }
