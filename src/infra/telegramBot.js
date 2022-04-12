@@ -9,19 +9,15 @@ const Files = require('./../controller/Files')
 // CONVERT NUMERIC SIZE TO SIZE NAME
 function formatBytes (bytes, decimals = 2) {
   if (bytes === 0) return '0 Bytes'
-
   const k = 1024
   const dm = decimals < 0 ? 0 : decimals
   const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB']
-
   const i = Math.floor(Math.log(bytes) / Math.log(k))
-
   return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i]
 }
 
 async function sendDownloadInline (chatId, file, messageId) {
   const fileSize = formatBytes(file.size)
-  console.log(file.hash)
   const inlineKeyboard = {
     inline_keyboard: [[
       { text: 'Download', callback_data: JSON.stringify({ type: 'download', hash: file.hash }) },
@@ -54,7 +50,6 @@ bot.onText(/\/start (.+)|\/getfile (.+)/, async (msg, match) => {
   // RETURN FILE FROM DATABASE
   await Files.getFile(resp)
     .then(async (data) => {
-      console.log(data)
       if (data.length > 0) {
         const file = data[0]
         // FREE SHARING OPTION
@@ -73,19 +68,27 @@ bot.onText(/\/start (.+)|\/getfile (.+)/, async (msg, match) => {
 
 bot.onText(/\/upload/, (msg) => {
   bot.sendMessage(msg.chat.id, `Send me a file to Upload!
-Accepted file format:
+Available file format:
 
 🖼 .jpeg
 🖼 .png
 📝 .pdf   
 🎥 .mp4
-📚 .zip
-
-Important: Do not send multiple files. Only the one you will share!`)
+📚 .zip`)
 })
 
 bot.onText(/\/help/, (msg) => {
-  bot.sendMessage(msg.chat.id, 'Work in progress...')
+  bot.sendMessage(msg.chat.id, `Upload a file and share it once. After the first download, it will be permanently deleted!
+
+Info ℹ
+Max File Size: 2gb
+File Lifetime: 4 hours before deletion
+
+Commands 🕹
+/upload - Check available file format to upload.
+/getfile - Hint about download manually.
+
+This bot doen't store any user data. If Telegram does it, this has nothing to do with us.`)
 })
 
 bot.on('photo', async (msg) => {
@@ -111,8 +114,21 @@ bot.on('photo', async (msg) => {
 })
 bot.on('video', (msg) => {
   const chatId = msg.chat.id
-  bot.sendMessage(chatId, 'Recebi video!')
-  console.log(msg)
+  const video = msg.video
+  bot.downloadFile(video.file_id, fileHandler.oldFileFolder)
+    .then(oldFolder => {
+      const originalFilename = oldFolder.split('/').pop()
+      fileHandler.rename(oldFolder, fileHandler.newFileFolder(originalFilename))
+        .then(() => {
+          httpRequest.upload(chatId, msg.message_id, fileHandler.fileToUpload(originalFilename), originalFilename, 'document')
+            .then(async (data) => {
+              await fileHandler.delete(fileHandler.newFileFolder(originalFilename))
+              return data
+            })
+            .catch(async () => bot.sendMessage(chatId, 'Upload Problem. Try again!'))
+        })
+        .catch(async () => await bot.sendMessage(chatId, 'Upload Problem. Try again or type /upload to check allowed upload file format.'))
+    })
 })
 
 bot.on('document', (msg) => {
@@ -144,11 +160,16 @@ bot.on('callback_query', async (chatData) => {
       FileController.setSharingType(data.hash, data.type, chatData.from.id, 0, 'Default File Name')
         .then(async (hash) => await bot.sendMessage(chatId, 'With the hash below, the file can be downloaded once. Share carefully.')
           .then(async () => await bot.sendMessage(chatId, hash))
-          .then(async () => await bot.sendMessage(chatId, `If you prefer share this file as an URL, here is the link:\nhttps://t.me/HiddenShare_bot?start=${hash}`)))
+          .then(async () => await bot.sendMessage(chatId, 'If you prefer share this file as an URL, here is the link:'))
+          .then(async () => await bot.sendMessage(chatId, `https://t.me/HiddenShare_bot?start=${hash}`)))
         .catch(async () => await bot.sendMessage(chatId, 'Could not generate your share hash. Try again!'))
       break
-    case 'sell':
-      await bot.sendMessage(chatId, 'Not working yet')
+    case 'up_cancel':
+      Files.deleteFile(data.hash)
+        .then(() => {
+          bot.sendMessage(chatId, 'Canceled!')
+        })
+        .catch(err => console.log(err))
       break
     case 'download':
       await Files.getFile(data.hash)
@@ -157,7 +178,7 @@ bot.on('callback_query', async (chatData) => {
           if (file.uploadCategory === 'photo') await bot.sendPhoto(chatId, file.url)
           if (file.uploadCategory === 'document') await bot.sendDocument(chatId, file.url)
           if (file.uploadCategory === 'video') await bot.sendVideo(chatId, file.url)
-          await Files.deleteFile(file.hash)
+          Files.deleteFile(file.hash)
             .then(resp => {
               if (chatId !== resp.data.uploadedBy) {
                 bot.sendMessage(resp.data.uploadedBy, `The file you shared has been downloaded\nFile Hash: ${file.hash}`)
@@ -182,11 +203,11 @@ module.exports = {
     const parseData = JSON.parse(uploadedFileData)
     const inlineKeyboard = {
       inline_keyboard: [[
-        { text: 'Free 📤', callback_data: JSON.stringify({ type: 'share', hash: parseData.hash }) },
-        { text: 'Sell 💸', callback_data: JSON.stringify({ type: 'sell', hash: parseData.hash }) }
+        { text: 'Share ✅', callback_data: JSON.stringify({ type: 'share', hash: parseData.hash }) },
+        { text: 'Cancel ❌', callback_data: JSON.stringify({ type: 'up_cancel', hash: parseData.hash }) }
       ]]
     }
-    await bot.sendMessage(chatId, 'Select a sharing method:', {
+    await bot.sendMessage(chatId, 'Your file is ready to be shared.\nWhat you wanna do:', {
       reply_to_message_id: messageId,
       reply_markup: inlineKeyboard
     })
