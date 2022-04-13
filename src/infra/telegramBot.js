@@ -74,14 +74,20 @@ Available file format:
 🖼 .png
 📝 .pdf   
 🎥 .mp4
-📚 .zip`)
+📚 .zip
+
+Max File Size:
+  - Photos: 5mb
+  - Videos and Documents: 20mb`)
 })
 
 bot.onText(/\/help/, (msg) => {
   bot.sendMessage(msg.chat.id, `Upload a file and share it once. After the first download, it will be permanently deleted!
 
 Info ℹ
-Max File Size: 2gb
+Max File Size:
+  - Photos: 5mb
+  - Videos and Documents: 20mb
 File Lifetime: 4 hours before deletion
 
 Commands 🕹
@@ -97,6 +103,10 @@ bot.on('photo', async (msg) => {
   if (msg.photo[0]) { file = msg.photo[0] }
   if (msg.photo[1]) { file = msg.photo[1] }
   if (msg.photo[2]) { file = msg.photo[2] }
+  const fileSize = formatBytes(file.file_size).split(' ')
+  if (fileSize[0] > 5 && fileSize[1] === 'MB') {
+    return bot.sendMessage(chatId, 'File is too large. Images must have less than 5 MB.')
+  }
   bot.downloadFile(file.file_id, fileHandler.oldFileFolder)
     .then(oldFolder => {
       const originalFilename = oldFolder.split('/').pop()
@@ -115,12 +125,22 @@ bot.on('photo', async (msg) => {
 bot.on('video', (msg) => {
   const chatId = msg.chat.id
   const video = msg.video
+  // CHECK FILE FORMAT (MIMETYPE)
+  if (video.mime_type !== 'video/mp4') {
+    return bot.sendMessage(chatId, 'File format problem. Type /upload to check available file format.')
+  }
+  // CHECK FILE SIZE
+  const fileSize = formatBytes(video.file_size).split(' ')
+  if (fileSize[0] > 20 && fileSize[1] === 'MB') {
+    return bot.sendMessage(chatId, 'File is too large. Videos must have less than 20 MB.')
+  }
   bot.downloadFile(video.file_id, fileHandler.oldFileFolder)
     .then(oldFolder => {
       const originalFilename = oldFolder.split('/').pop()
       fileHandler.rename(oldFolder, fileHandler.newFileFolder(originalFilename))
         .then(() => {
-          httpRequest.upload(chatId, msg.message_id, fileHandler.fileToUpload(originalFilename), originalFilename, 'document')
+          bot.sendMessage(chatId, 'Uploading your file. Please, wait...')
+          httpRequest.upload(chatId, msg.message_id, fileHandler.fileToUpload(originalFilename), originalFilename, 'video')
             .then(async (data) => {
               await fileHandler.delete(fileHandler.newFileFolder(originalFilename))
               return data
@@ -134,11 +154,21 @@ bot.on('video', (msg) => {
 bot.on('document', (msg) => {
   const chatId = msg.chat.id
   const document = msg.document
+  // CHECK FILE FORMAT (MIMETYPE)
+  if (document.mime_type !== 'application/zip' || document.mime_type !== 'application/pdf') {
+    return bot.sendMessage(chatId, 'File format problem. Type /upload to check available file format.')
+  }
+  // CHECK FILE SIZE
+  const fileSize = formatBytes(document.file_size).split(' ')
+  if (fileSize[0] > 20 && fileSize[1] === 'MB') {
+    return bot.sendMessage(chatId, 'File is too large. Documents must have less than 5 MB.')
+  }
   bot.downloadFile(document.file_id, fileHandler.oldFileFolder)
     .then(oldFolder => {
       const originalFilename = oldFolder.split('/').pop()
       fileHandler.rename(oldFolder, fileHandler.newFileFolder(originalFilename))
         .then(() => {
+          bot.sendMessage(chatId, 'Uploading your file. Please, wait...')
           httpRequest.upload(chatId, msg.message_id, fileHandler.fileToUpload(originalFilename), originalFilename, 'document')
             .then(async (data) => {
               await fileHandler.delete(fileHandler.newFileFolder(originalFilename))
@@ -195,7 +225,14 @@ bot.on('callback_query', async (chatData) => {
 })
 
 bot.on('message', (msg) => {
-  // NOTHING YET
+  // const chatId = msg.chat.id
+  // bot.sendMessage(chatId, 'Received your message')
+  //   .then((data) => {
+  //     bot.editMessageText('Editado', {
+  //       message_id: data.message_id,
+  //       chat_id: data.chat.id
+  //     })
+  //   })
 })
 
 module.exports = {
@@ -214,5 +251,8 @@ module.exports = {
   },
   sendMessage: async (chatId, message) => {
     await bot.sendMessage(chatId, message)
+  },
+  uploadLog: async (data) => {
+    await console.log(data)
   }
 }

@@ -1,8 +1,13 @@
 const FormData = require('form-data')
 const axios = require('axios').default
+const telegramBot = require('./../infra/telegramBot')
 const uploadURL = process.env.APP_UPLOAD_ROUTE
 const deleteURL = process.env.APP_DELETE_ROUTE
+
 module.exports = {
+  reportUploadPercent: (number) => {
+    console.log(number)
+  },
   upload: (chatId, messageId, fileToUpload, originalFilename, category) => {
     return new Promise(function (resolve, reject) {
       const formData = new FormData()
@@ -11,8 +16,14 @@ module.exports = {
       formData.append('category', category)
       formData.append('messageid', messageId)
       formData.append('chatid', chatId)
-      const submit = axios.post(uploadURL, formData, {
-        headers: formData.getHeaders()
+      axios.post(uploadURL, formData, {
+        headers: formData.getHeaders(),
+        maxContentLength: Infinity,
+        maxBodyLength: Infinity,
+        onUploadProgress: (progressEvent) => {
+          const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total)
+          this.reportUploadPercent(percentCompleted)
+        }
       })
         .then((data) => {
           if (data.status === 201) {
@@ -24,7 +35,6 @@ module.exports = {
         .catch((err) => {
           reject(err)
         })
-        .catch(() => { return submit })
     })
   },
   delete: (fileHash) => {
